@@ -385,7 +385,7 @@ end
 -- ===== Options panel (separate window, opened via /sm options) =====
 
 local OPTIONS_WIDTH = 250
-local OPTIONS_HEIGHT = 252
+local OPTIONS_HEIGHT = 336
 
 local optionsFrame = CreateFrame("Frame", "SweetMarksOptionsFrame", UIParent)
 optionsFrame:SetWidth(OPTIONS_WIDTH)
@@ -472,6 +472,8 @@ optHelpBtn:SetScript("OnEnter", function()
     GameTooltip:AddLine("Fixed Position: the popup opens in a set spot and stays open until you press the key again. Drag its header to move it, and use the lock button (top-right of the popup) to stop it moving by accident.", 0.8, 0.8, 0.8, 1)
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("Slim popup: shows just a single smaller row of icons, no title bar or Clear Mark button. Drag/lock then works from the tiny \"L\" in its top-left corner instead - or use the Lock position checkbox below, which is easier to hit.", 0.8, 0.8, 0.8, 1)
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("Mark unit under mouse: targets whatever's under your cursor the instant the popup opens, so you can mark it without clicking it first. Only works over the 3D world or nameplates, not unit frames.", 0.8, 0.8, 0.8, 1)
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("The minimap button reopens this Options window.", 0.8, 0.8, 0.8, 1)
     GameTooltip:Show()
@@ -651,6 +653,55 @@ fixedCheck:SetScript("OnClick", function()
     UpdateLockCheckboxVisual()
 end)
 
+-- Mouseover marking - grabs whatever's under your mouse as your target the
+-- moment the popup opens (only works over the 3D world/nameplates, not
+-- unit frames, per vanilla's own mouseover limitations). Off by default
+-- since it's a real gameplay side effect (changes your actual target).
+local mouseoverCheck = CreateFrame("CheckButton", nil, optionsFrame)
+mouseoverCheck:SetWidth(16)
+mouseoverCheck:SetHeight(16)
+mouseoverCheck:SetPoint("TOP", slimHint, "BOTTOM", 0, -14)
+mouseoverCheck:SetBackdrop({
+    bgFile = "Interface\\Buttons\\WHITE8x8",
+    edgeFile = "Interface\\Buttons\\WHITE8x8",
+    edgeSize = 1,
+    insets = { left = 1, right = 1, top = 1, bottom = 1 },
+})
+mouseoverCheck:SetBackdropColor(unpack(COLOR_BTN))
+mouseoverCheck:SetBackdropBorderColor(unpack(COLOR_BORDER))
+mouseoverCheck:SetHighlightTexture("Interface\\Buttons\\WHITE8x8")
+local mouseoverCheckHl = mouseoverCheck:GetHighlightTexture()
+mouseoverCheckHl:SetVertexColor(1, 1, 1, 0.08)
+mouseoverCheck:SetCheckedTexture("Interface\\Buttons\\WHITE8x8")
+local mouseoverCheckedTex = mouseoverCheck:GetCheckedTexture()
+mouseoverCheckedTex:ClearAllPoints()
+mouseoverCheckedTex:SetPoint("TOPLEFT", mouseoverCheck, "TOPLEFT", 3, -3)
+mouseoverCheckedTex:SetPoint("BOTTOMRIGHT", mouseoverCheck, "BOTTOMRIGHT", -3, 3)
+mouseoverCheckedTex:SetVertexColor(unpack(COLOR_ACCENT_LINE))
+
+local mouseoverCheckLabel = mouseoverCheck:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+mouseoverCheckLabel:SetPoint("TOP", mouseoverCheck, "BOTTOM", 0, -4)
+mouseoverCheckLabel:SetText("Mark unit under mouse")
+
+local mouseoverHint = optionsFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+mouseoverHint:SetWidth(HINT_WIDTH)
+mouseoverHint:SetPoint("TOP", mouseoverCheckLabel, "BOTTOM", 0, -6)
+mouseoverHint:SetJustifyH("CENTER")
+mouseoverHint:SetText("Targets whatever's under your cursor when the popup opens, so you don't have to click it first. Only works over the 3D world or nameplates, not unit frames.")
+
+mouseoverCheck:SetScript("OnEnter", function()
+    GameTooltip:SetOwner(mouseoverCheck, "ANCHOR_TOP")
+    GameTooltip:SetText("Mark unit under mouse")
+    GameTooltip:AddLine("Changes your actual target to whatever's under your mouse the instant the popup opens.", 0.8, 0.8, 0.8, 1)
+    GameTooltip:Show()
+end)
+mouseoverCheck:SetScript("OnLeave", function()
+    GameTooltip:Hide()
+end)
+mouseoverCheck:SetScript("OnClick", function()
+    SweetMarksDB.mouseoverMark = this:GetChecked() and true or false
+end)
+
 local function ResetPosition()
     frame:ClearAllPoints()
     frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
@@ -763,6 +814,7 @@ function SweetMarks_ToggleOptions()
         fixedCheck:SetChecked(SweetMarksDB.fixedPosition)
         UpdateSwitchVisual(SweetMarksDB.fixedPosition and true or false)
         slimCheck:SetChecked(SweetMarksDB.slim)
+        mouseoverCheck:SetChecked(SweetMarksDB.mouseoverMark)
         UpdateLockCheckboxVisual()
         optionsFrame:Show()
     end
@@ -783,6 +835,9 @@ dbLoader:SetScript("OnEvent", function()
     end
     if SweetMarksDB.slim == nil then
         SweetMarksDB.slim = false
+    end
+    if SweetMarksDB.mouseoverMark == nil then
+        SweetMarksDB.mouseoverMark = false
     end
     SweetMarks_ApplySlim(SweetMarksDB.slim)
     if SweetMarksDB.point then
@@ -823,6 +878,16 @@ end
 -- (paired with SweetMarks_Hide on key-up for hold-to-show). Fixed-position
 -- mode doesn't hide on release, so key-down toggles it open/closed instead.
 function SweetMarks_Show()
+    -- Grab whatever's under the mouse right now, before it moves onto the
+    -- popup to click an icon - "mouseover" only reflects the 3D world/
+    -- nameplates in vanilla, and only while the cursor is actually there,
+    -- so this is the one moment it's usable. Turns it into your real
+    -- target so the normal marking flow (which always acts on "target")
+    -- needs no other changes.
+    if SweetMarksDB and SweetMarksDB.mouseoverMark and UnitExists("mouseover") then
+        TargetUnit("mouseover")
+    end
+
     if SweetMarksDB and SweetMarksDB.fixedPosition then
         if SweetMarksFrame:IsShown() then
             SweetMarksFrame:Hide()
