@@ -48,7 +48,10 @@ local frameHeight = HEADER_HEIGHT + PAD + iconsHeight + ICON_GRID_GAP + clearBtn
 local frame = CreateFrame("Frame", "SweetMarksFrame", UIParent)
 frame:SetWidth(frameWidth)
 frame:SetHeight(frameHeight)
-frame:SetFrameStrata("DIALOG")
+-- One strata above the Options window (also DIALOG) so the marks popup -
+-- the thing you're actively holding a key for - never ends up hidden
+-- behind Options just because Options was clicked into more recently.
+frame:SetFrameStrata("FULLSCREEN_DIALOG")
 frame:SetToplevel(true)
 frame:SetBackdrop({
     bgFile = "Interface\\Buttons\\WHITE8x8",
@@ -59,7 +62,6 @@ frame:SetBackdrop({
 frame:SetBackdropColor(unpack(COLOR_BG))
 frame:SetBackdropBorderColor(0.45, 0.45, 0.48, 1)
 frame:EnableMouse(true)
-frame:SetMovable(true)
 frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 frame:Hide()
 
@@ -67,28 +69,43 @@ frame:Hide()
 UISpecialFrames = UISpecialFrames or {}
 table.insert(UISpecialFrames, "SweetMarksFrame")
 
--- Shared by both the header's drag handle and the slim handle - saves
--- wherever the frame was just dropped so it reopens there next time.
-local function SaveFramePosition()
-    frame:StopMovingOrSizing()
-    local point, _, relPoint, x, y = frame:GetPoint()
+-- Manual drag: frame:StartMoving()/StopMovingOrSizing() caused repeatable
+-- hard client crashes on this client build (ACCESS_VIOLATION, same native
+-- instruction both times). This avoids those calls entirely, tracking the
+-- cursor via OnUpdate and repositioning with plain SetPoint instead - the
+-- same technique the minimap button already uses successfully below.
+local dragStartCursorX, dragStartCursorY = 0, 0
+local dragStartFrameX, dragStartFrameY = 0, 0
+
+local function OnFrameDragUpdate()
+    local scale = frame:GetEffectiveScale()
+    local cx, cy = GetCursorPosition()
+    cx = cx / scale
+    cy = cy / scale
+    frame:ClearAllPoints()
+    frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT",
+        dragStartFrameX + (cx - dragStartCursorX),
+        dragStartFrameY + (cy - dragStartCursorY))
+end
+
+local function StartFrameDrag()
+    local scale = frame:GetEffectiveScale()
+    local cx, cy = GetCursorPosition()
+    dragStartCursorX = cx / scale
+    dragStartCursorY = cy / scale
+    dragStartFrameX = frame:GetLeft() or 0
+    dragStartFrameY = frame:GetBottom() or 0
+    frame:SetScript("OnUpdate", OnFrameDragUpdate)
+end
+
+local function StopFrameDrag()
+    frame:SetScript("OnUpdate", nil)
+    local point, relativeTo, relPoint, x, y = frame:GetPoint()
     SweetMarksDB.point = point
     SweetMarksDB.relPoint = relPoint
     SweetMarksDB.x = x
     SweetMarksDB.y = y
 end
-
--- Also register the drag on the frame itself, not just the header/slim
--- handle: icon buttons still claim their own area (needed for clicking to
--- mark), but this makes every bit of padding around them - and around the
--- icons in non-slim mode too - grabbable, instead of only a small handle.
-frame:RegisterForDrag("LeftButton")
-frame:SetScript("OnDragStart", function()
-    if SweetMarksDB and SweetMarksDB.fixedPosition and not SweetMarksDB.locked then
-        frame:StartMoving()
-    end
-end)
-frame:SetScript("OnDragStop", SaveFramePosition)
 
 -- Header bar
 local header = CreateFrame("Frame", nil, frame)
@@ -118,10 +135,10 @@ header:EnableMouse(true)
 header:RegisterForDrag("LeftButton")
 header:SetScript("OnDragStart", function()
     if SweetMarksDB and SweetMarksDB.fixedPosition and not SweetMarksDB.locked then
-        frame:StartMoving()
+        StartFrameDrag()
     end
 end)
-header:SetScript("OnDragStop", SaveFramePosition)
+header:SetScript("OnDragStop", StopFrameDrag)
 
 -- Small lock button: only meaningful in fixed-position mode (chosen in
 -- Options) - locks/unlocks whether the popup can currently be dragged.
@@ -155,10 +172,10 @@ lockBtn:SetScript("OnEnter", function()
     GameTooltip:SetOwner(lockBtn, "ANCHOR_TOP")
     if SweetMarksDB.locked then
         GameTooltip:SetText("Position locked")
-        GameTooltip:AddLine("Click to unlock so you can drag the header again.", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("Click to unlock so you can drag the header again.", 0.8, 0.8, 0.8, 1)
     else
         GameTooltip:SetText("Position unlocked")
-        GameTooltip:AddLine("Drag the header to move it, then click to lock it in place.", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("Drag the header to move it, then click to lock it in place.", 0.8, 0.8, 0.8, 1)
     end
     GameTooltip:Show()
 end)
@@ -258,9 +275,9 @@ clearBtn:SetScript("OnClick", function()
 end)
 
 -- Slim mode has no header, so it gets its own tiny drag/lock handle tucked
--- in the corner - same drag-and-lock job the header does, just condensed.
--- The "L" disappears once locked so it doesn't clutter the icon row; the
--- hotspot and tooltip stay active either way so unlocking stays discoverable.
+-- in the corner - same job the header does, just condensed. The "L"
+-- disappears once locked so it doesn't clutter the icon row; the hotspot
+-- and tooltip stay active either way.
 local SLIM_HANDLE_SIZE = 11
 
 local slimHandle = CreateFrame("Button", "SweetMarksSlimLockButton", frame)
@@ -301,10 +318,10 @@ slimHandle:SetScript("OnEnter", function()
     GameTooltip:SetOwner(slimHandle, "ANCHOR_BOTTOMRIGHT")
     if SweetMarksDB and SweetMarksDB.locked then
         GameTooltip:SetText("Position locked")
-        GameTooltip:AddLine("Click to unlock so you can drag it again.", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("Click to unlock so you can drag it again.", 0.8, 0.8, 0.8, 1)
     else
         GameTooltip:SetText("Position unlocked")
-        GameTooltip:AddLine("Drag to move it, click to lock it in place.", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("Drag to move it, click to lock it in place.", 0.8, 0.8, 0.8, 1)
     end
     GameTooltip:Show()
 end)
@@ -322,10 +339,10 @@ end)
 slimHandle:RegisterForDrag("LeftButton")
 slimHandle:SetScript("OnDragStart", function()
     if SweetMarksDB and SweetMarksDB.fixedPosition and not SweetMarksDB.locked then
-        frame:StartMoving()
+        StartFrameDrag()
     end
 end)
-slimHandle:SetScript("OnDragStop", SaveFramePosition)
+slimHandle:SetScript("OnDragStop", StopFrameDrag)
 
 -- Slim mode: single row of smaller icons, no title bar or Clear Mark button.
 -- Slot/icon sizes and the frame itself are resized and re-anchored on
@@ -385,7 +402,7 @@ end
 -- ===== Options panel (separate window, opened via /sm options) =====
 
 local OPTIONS_WIDTH = 250
-local OPTIONS_HEIGHT = 336
+local OPTIONS_HEIGHT = 396
 
 local optionsFrame = CreateFrame("Frame", "SweetMarksOptionsFrame", UIParent)
 optionsFrame:SetWidth(OPTIONS_WIDTH)
@@ -469,9 +486,9 @@ optHelpBtn:SetScript("OnEnter", function()
     GameTooltip:AddLine("Clear Mark (or right-click any icon) removes the mark from your current target only.", 0.8, 0.8, 0.8, 1)
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("At Cursor: the popup opens under your mouse and closes as soon as you release the key.", 0.8, 0.8, 0.8, 1)
-    GameTooltip:AddLine("Fixed Position: the popup opens in a set spot and stays open until you press the key again. Drag its header to move it, and use the lock button (top-right of the popup) to stop it moving by accident.", 0.8, 0.8, 0.8, 1)
+    GameTooltip:AddLine("Fixed Position: the popup opens in a set spot and stays open until you press the key again. Drag its header to move it (or use the Reposition arrows below), and use the lock button to stop it moving by accident.", 0.8, 0.8, 0.8, 1)
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine("Slim popup: shows just a single smaller row of icons, no title bar or Clear Mark button. Drag/lock then works from the tiny \"L\" in its top-left corner instead - or use the Lock position checkbox below, which is easier to hit.", 0.8, 0.8, 0.8, 1)
+    GameTooltip:AddLine("Slim popup: shows just a single smaller row of icons, no title bar or Clear Mark button.", 0.8, 0.8, 0.8, 1)
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("Mark unit under mouse: targets whatever's under your cursor the instant the popup opens, so you can mark it without clicking it first. Only works over the 3D world or nameplates, not unit frames.", 0.8, 0.8, 0.8, 1)
     GameTooltip:AddLine(" ")
@@ -534,7 +551,7 @@ fixedHint:SetText("Off: hold to show, release to hide.\nOn: press to toggle - dr
 -- Both labels are constant text (never change at runtime), so a fixed-width
 -- row can be centered safely here without the wobble a variable-length
 -- label would cause.
-local SLIM_LOCK_ROW_WIDTH = 200
+local SLIM_LOCK_ROW_WIDTH = 216
 local slimLockRow = CreateFrame("Frame", nil, optionsFrame)
 slimLockRow:SetWidth(SLIM_LOCK_ROW_WIDTH)
 slimLockRow:SetHeight(16)
@@ -564,7 +581,7 @@ slimCheckedTex:SetVertexColor(unpack(COLOR_ACCENT_LINE))
 
 local slimLabel = slimCheck:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 slimLabel:SetPoint("LEFT", slimCheck, "RIGHT", 6, 0)
-slimLabel:SetText("Slim popup")
+slimLabel:SetText("Slim Popup")
 
 -- Lock position - mirrors SweetMarksDB.locked directly (checked = locked),
 -- and only shows up in Fixed Position mode, same as the on-frame lock
@@ -572,7 +589,7 @@ slimLabel:SetText("Slim popup")
 local lockCheck = CreateFrame("CheckButton", nil, optionsFrame)
 lockCheck:SetWidth(16)
 lockCheck:SetHeight(16)
-lockCheck:SetPoint("LEFT", slimLockRow, "LEFT", 96, 0)
+lockCheck:SetPoint("LEFT", slimLockRow, "LEFT", 110, 0)
 lockCheck:SetBackdrop({
     bgFile = "Interface\\Buttons\\WHITE8x8",
     edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -593,7 +610,7 @@ lockCheckedTex:SetVertexColor(unpack(COLOR_ACCENT_LINE))
 
 local lockCheckLabel = lockCheck:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 lockCheckLabel:SetPoint("LEFT", lockCheck, "RIGHT", 6, 0)
-lockCheckLabel:SetText("Lock position")
+lockCheckLabel:SetText("Lock Position")
 
 local slimHint = optionsFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 slimHint:SetWidth(HINT_WIDTH)
@@ -620,7 +637,7 @@ end
 
 lockCheck:SetScript("OnEnter", function()
     GameTooltip:SetOwner(lockCheck, "ANCHOR_TOP")
-    GameTooltip:SetText("Lock position")
+    GameTooltip:SetText("Lock Position")
     GameTooltip:AddLine("Stops the popup being dragged - handy for the slim popup, whose own lock handle is tiny.", 0.8, 0.8, 0.8, 1)
     GameTooltip:Show()
 end)
@@ -651,6 +668,7 @@ fixedCheck:SetScript("OnClick", function()
     UpdateSwitchVisual(isFixed)
     SweetMarks_RefreshLockVisuals()
     UpdateLockCheckboxVisual()
+    SweetMarks_UpdateNudgeVisual()
 end)
 
 -- Mouseover marking - grabs whatever's under your mouse as your target the
@@ -701,6 +719,97 @@ end)
 mouseoverCheck:SetScript("OnClick", function()
     SweetMarksDB.mouseoverMark = this:GetChecked() and true or false
 end)
+
+-- Reposition buttons - a safe stand-in for dragging, which crashes this
+-- client. Nudges the popup by a fixed step using plain SetPoint, never
+-- StartMoving/StopMovingOrSizing. Only meaningful in Fixed Position mode,
+-- since At Cursor always re-centers on the mouse when it opens anyway.
+local NUDGE_STEP = 10
+
+local nudgeHeading = optionsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+nudgeHeading:SetPoint("TOP", mouseoverHint, "BOTTOM", 0, -14)
+nudgeHeading:SetTextColor(1, 1, 1, 1)
+nudgeHeading:SetText("Reposition")
+
+local function NudgeFrame(dx, dy)
+    local point, relativeTo, relPoint, x, y = frame:GetPoint()
+    x = (x or 0) + dx
+    y = (y or 0) + dy
+    frame:ClearAllPoints()
+    frame:SetPoint(point, relativeTo or UIParent, relPoint, x, y)
+    SweetMarksDB.point = point
+    SweetMarksDB.relPoint = relPoint
+    SweetMarksDB.x = x
+    SweetMarksDB.y = y
+end
+
+local NUDGE_BTN_SIZE = 22
+local NUDGE_GAP = 4
+local NUDGE_ROW_WIDTH = 4 * NUDGE_BTN_SIZE + 3 * NUDGE_GAP
+
+local nudgeRow = CreateFrame("Frame", nil, optionsFrame)
+nudgeRow:SetWidth(NUDGE_ROW_WIDTH)
+nudgeRow:SetHeight(NUDGE_BTN_SIZE)
+nudgeRow:SetPoint("TOP", nudgeHeading, "BOTTOM", 0, -8)
+
+local nudgeButtons = {}
+
+local function CreateNudgeButton(xOffset, label, tooltipText, dx, dy)
+    local btn = CreateFrame("Button", nil, optionsFrame)
+    btn:SetWidth(NUDGE_BTN_SIZE)
+    btn:SetHeight(NUDGE_BTN_SIZE)
+    btn:SetPoint("LEFT", nudgeRow, "LEFT", xOffset, 0)
+
+    local bg = Flat(btn)
+    bg:SetAllPoints(btn)
+    SetColor(bg, COLOR_BTN)
+
+    local hl = Flat(btn, "HIGHLIGHT")
+    hl:SetAllPoints(btn)
+    SetColor(hl, COLOR_BTN_HOVER)
+
+    local glyph = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    glyph:SetPoint("CENTER")
+    glyph:SetText(label)
+
+    btn:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(btn, "ANCHOR_TOP")
+        GameTooltip:SetText(tooltipText)
+        GameTooltip:Show()
+    end)
+    btn:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    btn:SetScript("OnClick", function()
+        NudgeFrame(dx, dy)
+    end)
+
+    table.insert(nudgeButtons, btn)
+    return btn
+end
+
+CreateNudgeButton(0, "<", "Move left", -NUDGE_STEP, 0)
+CreateNudgeButton(NUDGE_BTN_SIZE + NUDGE_GAP, "^", "Move up", 0, NUDGE_STEP)
+CreateNudgeButton(2 * (NUDGE_BTN_SIZE + NUDGE_GAP), "v", "Move down", 0, -NUDGE_STEP)
+CreateNudgeButton(3 * (NUDGE_BTN_SIZE + NUDGE_GAP), ">", "Move right", NUDGE_STEP, 0)
+
+-- Global (not local) so fixedCheck's OnClick - defined earlier in the file,
+-- before these widgets exist - can call it safely: global lookups resolve
+-- at call time, unlike local upvalues which need the closure defined after
+-- the local they capture.
+function SweetMarks_UpdateNudgeVisual()
+    if not (SweetMarksDB and SweetMarksDB.fixedPosition) then
+        nudgeHeading:Hide()
+        for i = 1, table.getn(nudgeButtons) do
+            nudgeButtons[i]:Hide()
+        end
+        return
+    end
+    nudgeHeading:Show()
+    for i = 1, table.getn(nudgeButtons) do
+        nudgeButtons[i]:Show()
+    end
+end
 
 local function ResetPosition()
     frame:ClearAllPoints()
@@ -816,6 +925,7 @@ function SweetMarks_ToggleOptions()
         slimCheck:SetChecked(SweetMarksDB.slim)
         mouseoverCheck:SetChecked(SweetMarksDB.mouseoverMark)
         UpdateLockCheckboxVisual()
+        SweetMarks_UpdateNudgeVisual()
         optionsFrame:Show()
     end
 end
