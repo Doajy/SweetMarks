@@ -1,5 +1,7 @@
 A keybind popup for quickly marking targets with raid icons, solo or in a group, for Turtle WoW / Octo WoW (1.12 client).
 
+![The mark popup, slim popup, and Options window](screenshots/preview.png)
+
 Download from https://github.com/Doajy/SweetMarks/releases remove the -main and place in your addons folder
 
 ## Setup
