@@ -1,0 +1,8 @@
+## Interface: 11200
+## Title: SweetMarks
+## Notes: Popup keybind for quickly marking your current target, solo or in a group.
+## Author: Douglas
+## Version: 1.0
+## SavedVariables: SweetMarksDB
+
+SweetMarks.lua

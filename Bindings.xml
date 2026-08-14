@@ -1,0 +1,9 @@
+<Bindings>
+    <Binding name="SWEETMARKS_TOGGLE" header="SWEETMARKS" runOnUp="true">
+        if ( keystate == "down" ) then
+            SweetMarks_Show()
+        else
+            SweetMarks_Hide()
+        end
+    </Binding>
+</Bindings>
