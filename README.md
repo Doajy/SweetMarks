@@ -13,6 +13,7 @@ Download from https://github.com/Doajy/SweetMarks/releases remove the -main and 
 
 - **Hold your keybind** to open the popup at your mouse cursor. Click one of the 8 raid icons to mark your current target. Release the key to close the popup.
 - **Right-click any icon** (or click **Clear Mark**) to remove the mark from your current target.
+- With **Mark on Release** enabled (see Options below), you don't need to click at all: hold the keybind, hover an icon, and release the key to mark your target with it. Combine with **Mark unit under mouse** for a full mouseover-to-mark flow — mouseover a unit, hold the keybind, hover the icon, release.
 - Marking works the same whether you're solo, in a party, or have raid assist — permissions follow normal WoW rules (raid members without assist can't set marks for others).
 
 ## Options
