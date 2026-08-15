@@ -37,6 +37,10 @@ local function SetColor(tex, c)
     tex:SetVertexColor(c[1], c[2], c[3], c[4])
 end
 
+-- Tracks which mark icon (if any) the mouse is currently over, so the
+-- "Mark on Release" option knows what a keybind release should apply.
+local hoveredMarkIndex = nil
+
 -- ===== Main frame =====
 
 local iconsHeight = 2 * ICON_SIZE + ICON_GAP
@@ -64,6 +68,13 @@ frame:SetBackdropBorderColor(0.45, 0.45, 0.48, 1)
 frame:EnableMouse(true)
 frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 frame:Hide()
+
+-- Clears hover tracking on every path that hides the frame (release-to-mark,
+-- Escape, explicit Hide calls), so a stale hover from a previous popup
+-- session can never be mistaken for a live one.
+frame:SetScript("OnHide", function()
+    hoveredMarkIndex = nil
+end)
 
 -- Let Escape close the popup like a normal Blizzard dialog.
 UISpecialFrames = UISpecialFrames or {}
@@ -230,14 +241,22 @@ for i = 1, 8 do
         else
             SweetMarks_Mark(index)
         end
+        -- A click already resolved the action - without this, releasing the
+        -- keybind afterward while still hovering this icon would trigger
+        -- Mark on Release too, silently redoing a mark or undoing a clear.
+        hoveredMarkIndex = nil
     end)
     slot:SetScript("OnEnter", function()
+        hoveredMarkIndex = index
         GameTooltip:SetOwner(slot, "ANCHOR_TOP")
         GameTooltip:SetText(ICON_NAMES[index])
         GameTooltip:AddLine("Right-click to clear the mark.", 0.6, 0.85, 1, 1)
         GameTooltip:Show()
     end)
     slot:SetScript("OnLeave", function()
+        if hoveredMarkIndex == index then
+            hoveredMarkIndex = nil
+        end
         GameTooltip:Hide()
     end)
 
@@ -402,7 +421,7 @@ end
 -- ===== Options panel (separate window, opened via /sm options) =====
 
 local OPTIONS_WIDTH = 250
-local OPTIONS_HEIGHT = 396
+local OPTIONS_HEIGHT = 470
 
 local optionsFrame = CreateFrame("Frame", "SweetMarksOptionsFrame", UIParent)
 optionsFrame:SetWidth(OPTIONS_WIDTH)
@@ -491,6 +510,8 @@ optHelpBtn:SetScript("OnEnter", function()
     GameTooltip:AddLine("Slim popup: shows just a single smaller row of icons, no title bar or Clear Mark button.", 0.8, 0.8, 0.8, 1)
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("Mark unit under mouse: targets whatever's under your cursor the instant the popup opens, so you can mark it without clicking it first. Only works over the 3D world or nameplates, not unit frames.", 0.8, 0.8, 0.8, 1)
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("Mark on Release: hold the keybind, hover an icon, then release to mark it - no click needed. Works in both popup modes.", 0.8, 0.8, 0.8, 1)
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("The minimap button reopens this Options window.", 0.8, 0.8, 0.8, 1)
     GameTooltip:Show()
@@ -720,6 +741,55 @@ mouseoverCheck:SetScript("OnClick", function()
     SweetMarksDB.mouseoverMark = this:GetChecked() and true or false
 end)
 
+-- Release-to-mark - lets you select a mark by hovering it and releasing the
+-- keybind instead of clicking it. Complements "Mark unit under mouse": hold
+-- the key, hover a unit then an icon, release once over the icon. Checked
+-- in SweetMarks_Hide directly, so it works in both popup modes.
+local releaseCheck = CreateFrame("CheckButton", nil, optionsFrame)
+releaseCheck:SetWidth(16)
+releaseCheck:SetHeight(16)
+releaseCheck:SetPoint("TOP", mouseoverHint, "BOTTOM", 0, -14)
+releaseCheck:SetBackdrop({
+    bgFile = "Interface\\Buttons\\WHITE8x8",
+    edgeFile = "Interface\\Buttons\\WHITE8x8",
+    edgeSize = 1,
+    insets = { left = 1, right = 1, top = 1, bottom = 1 },
+})
+releaseCheck:SetBackdropColor(unpack(COLOR_BTN))
+releaseCheck:SetBackdropBorderColor(unpack(COLOR_BORDER))
+releaseCheck:SetHighlightTexture("Interface\\Buttons\\WHITE8x8")
+local releaseCheckHl = releaseCheck:GetHighlightTexture()
+releaseCheckHl:SetVertexColor(1, 1, 1, 0.08)
+releaseCheck:SetCheckedTexture("Interface\\Buttons\\WHITE8x8")
+local releaseCheckedTex = releaseCheck:GetCheckedTexture()
+releaseCheckedTex:ClearAllPoints()
+releaseCheckedTex:SetPoint("TOPLEFT", releaseCheck, "TOPLEFT", 3, -3)
+releaseCheckedTex:SetPoint("BOTTOMRIGHT", releaseCheck, "BOTTOMRIGHT", -3, 3)
+releaseCheckedTex:SetVertexColor(unpack(COLOR_ACCENT_LINE))
+
+local releaseCheckLabel = releaseCheck:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+releaseCheckLabel:SetPoint("TOP", releaseCheck, "BOTTOM", 0, -4)
+releaseCheckLabel:SetText("Mark on Release")
+
+local releaseHint = optionsFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+releaseHint:SetWidth(HINT_WIDTH)
+releaseHint:SetPoint("TOP", releaseCheckLabel, "BOTTOM", 0, -6)
+releaseHint:SetJustifyH("CENTER")
+releaseHint:SetText("Hold the keybind, hover a mark icon, then release to apply it - no click needed.")
+
+releaseCheck:SetScript("OnEnter", function()
+    GameTooltip:SetOwner(releaseCheck, "ANCHOR_TOP")
+    GameTooltip:SetText("Mark on Release")
+    GameTooltip:AddLine("Releasing the keybind while hovering an icon marks your target with it, in either popup mode.", 0.8, 0.8, 0.8, 1)
+    GameTooltip:Show()
+end)
+releaseCheck:SetScript("OnLeave", function()
+    GameTooltip:Hide()
+end)
+releaseCheck:SetScript("OnClick", function()
+    SweetMarksDB.releaseToMark = this:GetChecked() and true or false
+end)
+
 -- Reposition buttons - a safe stand-in for dragging, which crashes this
 -- client. Nudges the popup by a fixed step using plain SetPoint, never
 -- StartMoving/StopMovingOrSizing. Only meaningful in Fixed Position mode,
@@ -727,7 +797,7 @@ end)
 local NUDGE_STEP = 10
 
 local nudgeHeading = optionsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-nudgeHeading:SetPoint("TOP", mouseoverHint, "BOTTOM", 0, -14)
+nudgeHeading:SetPoint("TOP", releaseHint, "BOTTOM", 0, -14)
 nudgeHeading:SetTextColor(1, 1, 1, 1)
 nudgeHeading:SetText("Reposition")
 
@@ -924,6 +994,7 @@ function SweetMarks_ToggleOptions()
         UpdateSwitchVisual(SweetMarksDB.fixedPosition and true or false)
         slimCheck:SetChecked(SweetMarksDB.slim)
         mouseoverCheck:SetChecked(SweetMarksDB.mouseoverMark)
+        releaseCheck:SetChecked(SweetMarksDB.releaseToMark)
         UpdateLockCheckboxVisual()
         SweetMarks_UpdateNudgeVisual()
         optionsFrame:Show()
@@ -948,6 +1019,9 @@ dbLoader:SetScript("OnEvent", function()
     end
     if SweetMarksDB.mouseoverMark == nil then
         SweetMarksDB.mouseoverMark = false
+    end
+    if SweetMarksDB.releaseToMark == nil then
+        SweetMarksDB.releaseToMark = false
     end
     SweetMarks_ApplySlim(SweetMarksDB.slim)
     if SweetMarksDB.point then
@@ -1014,6 +1088,16 @@ end
 -- Called from Bindings.xml on key-up: closes the popup, except in
 -- fixed-position mode where it stays open until toggled again.
 function SweetMarks_Hide()
+    -- Release-to-mark: if the release happens while hovering an icon, apply
+    -- that mark and close the popup regardless of position mode - checked
+    -- before the fixed-position early-return so it works there too (as long
+    -- as the key is still held when the icon is hovered).
+    if SweetMarksDB and SweetMarksDB.releaseToMark and hoveredMarkIndex then
+        SweetMarks_Mark(hoveredMarkIndex)
+        SweetMarksFrame:Hide()
+        return
+    end
+
     if SweetMarksDB and SweetMarksDB.fixedPosition then
         return
     end
