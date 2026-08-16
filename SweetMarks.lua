@@ -457,7 +457,7 @@ end
 -- ===== Options panel (separate window, opened via /sm options) =====
 
 local OPTIONS_WIDTH = 250
-local OPTIONS_HEIGHT = 560
+local OPTIONS_HEIGHT = 450
 
 local optionsFrame = CreateFrame("Frame", "SweetMarksOptionsFrame", UIParent)
 optionsFrame:SetWidth(OPTIONS_WIDTH)
@@ -825,6 +825,15 @@ fixedCheck:SetScript("OnClick", function()
     SweetMarks_UpdateNudgeVisual()
 end)
 
+-- Mouseover marking + release-to-mark, side by side like Slim Popup/Lock
+-- Position above - both change how marking is triggered rather than what's
+-- shown, so they pair naturally. Full descriptions live in the tooltips;
+-- the shared hint below is deliberately short to keep this compact.
+local mouseoverReleaseRow = CreateFrame("Frame", nil, optionsFrame)
+mouseoverReleaseRow:SetWidth(SLIM_LOCK_ROW_WIDTH)
+mouseoverReleaseRow:SetHeight(16)
+mouseoverReleaseRow:SetPoint("TOP", visHint, "BOTTOM", 0, -14)
+
 -- Mouseover marking - grabs whatever's under your mouse as your target the
 -- moment the popup opens (only works over the 3D world/nameplates, not
 -- unit frames, per vanilla's own mouseover limitations). Off by default
@@ -832,7 +841,7 @@ end)
 local mouseoverCheck = CreateFrame("CheckButton", nil, optionsFrame)
 mouseoverCheck:SetWidth(16)
 mouseoverCheck:SetHeight(16)
-mouseoverCheck:SetPoint("TOP", visHint, "BOTTOM", 0, -14)
+mouseoverCheck:SetPoint("LEFT", mouseoverReleaseRow, "LEFT", 0, 0)
 mouseoverCheck:SetBackdrop({
     bgFile = "Interface\\Buttons\\WHITE8x8",
     edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -852,19 +861,14 @@ mouseoverCheckedTex:SetPoint("BOTTOMRIGHT", mouseoverCheck, "BOTTOMRIGHT", -3, 3
 mouseoverCheckedTex:SetVertexColor(unpack(COLOR_ACCENT_LINE))
 
 local mouseoverCheckLabel = mouseoverCheck:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-mouseoverCheckLabel:SetPoint("TOP", mouseoverCheck, "BOTTOM", 0, -4)
-mouseoverCheckLabel:SetText("Mark unit under mouse")
-
-local mouseoverHint = optionsFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-mouseoverHint:SetWidth(HINT_WIDTH)
-mouseoverHint:SetPoint("TOP", mouseoverCheckLabel, "BOTTOM", 0, -6)
-mouseoverHint:SetJustifyH("CENTER")
-mouseoverHint:SetText("Targets whatever's under your cursor when the popup opens, so you don't have to click it first. Only works over the 3D world or nameplates, not unit frames.")
+mouseoverCheckLabel:SetPoint("LEFT", mouseoverCheck, "RIGHT", 6, 0)
+mouseoverCheckLabel:SetText("Mouseover")
 
 mouseoverCheck:SetScript("OnEnter", function()
     GameTooltip:SetOwner(mouseoverCheck, "ANCHOR_TOP")
     GameTooltip:SetText("Mark unit under mouse")
-    GameTooltip:AddLine("Changes your actual target to whatever's under your mouse the instant the popup opens.", 0.8, 0.8, 0.8, 1)
+    GameTooltip:AddLine("Targets whatever's under your cursor the instant the popup opens, so you can mark it without clicking it first.", 0.8, 0.8, 0.8, 1)
+    GameTooltip:AddLine("Only works over the 3D world or nameplates, not unit frames - a vanilla limitation, not an addon setting.", 0.8, 0.8, 0.8, 1)
     GameTooltip:Show()
 end)
 mouseoverCheck:SetScript("OnLeave", function()
@@ -881,7 +885,7 @@ end)
 local releaseCheck = CreateFrame("CheckButton", nil, optionsFrame)
 releaseCheck:SetWidth(16)
 releaseCheck:SetHeight(16)
-releaseCheck:SetPoint("TOP", mouseoverHint, "BOTTOM", 0, -14)
+releaseCheck:SetPoint("LEFT", mouseoverReleaseRow, "LEFT", 110, 0)
 releaseCheck:SetBackdrop({
     bgFile = "Interface\\Buttons\\WHITE8x8",
     edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -901,19 +905,14 @@ releaseCheckedTex:SetPoint("BOTTOMRIGHT", releaseCheck, "BOTTOMRIGHT", -3, 3)
 releaseCheckedTex:SetVertexColor(unpack(COLOR_ACCENT_LINE))
 
 local releaseCheckLabel = releaseCheck:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-releaseCheckLabel:SetPoint("TOP", releaseCheck, "BOTTOM", 0, -4)
-releaseCheckLabel:SetText("Mark on Release")
-
-local releaseHint = optionsFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-releaseHint:SetWidth(HINT_WIDTH)
-releaseHint:SetPoint("TOP", releaseCheckLabel, "BOTTOM", 0, -6)
-releaseHint:SetJustifyH("CENTER")
-releaseHint:SetText("Hold the keybind, hover a mark icon, then release to apply it - no click needed.")
+releaseCheckLabel:SetPoint("LEFT", releaseCheck, "RIGHT", 6, 0)
+releaseCheckLabel:SetText("On Release")
 
 releaseCheck:SetScript("OnEnter", function()
     GameTooltip:SetOwner(releaseCheck, "ANCHOR_TOP")
     GameTooltip:SetText("Mark on Release")
-    GameTooltip:AddLine("Releasing the keybind while hovering an icon marks your target with it, in either popup mode.", 0.8, 0.8, 0.8, 1)
+    GameTooltip:AddLine("Hold the keybind, hover a mark icon, then release to apply it - no click needed.", 0.8, 0.8, 0.8, 1)
+    GameTooltip:AddLine("Works in both popup modes, and pairs well with Mouseover above.", 0.8, 0.8, 0.8, 1)
     GameTooltip:Show()
 end)
 releaseCheck:SetScript("OnLeave", function()
@@ -923,6 +922,12 @@ releaseCheck:SetScript("OnClick", function()
     SweetMarksDB.releaseToMark = this:GetChecked() and true or false
 end)
 
+local mouseoverReleaseHint = optionsFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+mouseoverReleaseHint:SetWidth(HINT_WIDTH)
+mouseoverReleaseHint:SetPoint("TOP", mouseoverReleaseRow, "BOTTOM", 0, -10)
+mouseoverReleaseHint:SetJustifyH("CENTER")
+mouseoverReleaseHint:SetText("Change how marking is triggered. Hover either option for details.")
+
 -- Reposition buttons - a safe stand-in for dragging, which crashes this
 -- client. Nudges the popup by a fixed step using plain SetPoint, never
 -- StartMoving/StopMovingOrSizing. Only meaningful in Fixed Position mode,
@@ -930,7 +935,7 @@ end)
 local NUDGE_STEP = 10
 
 local nudgeHeading = optionsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-nudgeHeading:SetPoint("TOP", releaseHint, "BOTTOM", 0, -14)
+nudgeHeading:SetPoint("TOP", mouseoverReleaseHint, "BOTTOM", 0, -14)
 nudgeHeading:SetTextColor(1, 1, 1, 1)
 nudgeHeading:SetText("Reposition")
 
