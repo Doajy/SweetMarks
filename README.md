@@ -21,7 +21,7 @@ Download from https://github.com/Doajy/SweetMarks/releases remove the -main and 
 - **Where the popup opens** — *At Cursor* (default, hold-to-show as above) or *Fixed Position* (press the key to toggle it open/closed instead, and it stays put where you last dragged it).
 - **Slim popup** — shows all 8 icons in a single smaller row with no title bar or Clear Mark button.
 - **Lock position** — only shown in Fixed Position mode; stops the popup from being dragged by accident. In Slim mode, the tiny "L" in the popup's top-left corner does the same thing.
-- **Visible Marks** — uncheck any icon you never use to hide it from the popup. The grid (or slim row) reflows to fit whatever's left, so the popup shrinks instead of leaving gaps. At least one mark must stay checked.
+- **Visible Marks** — click any icon in this row to hide it from the popup (dimmed = hidden). The grid (or slim row) reflows to fit whatever's left, so the popup shrinks instead of leaving gaps. At least one mark must stay visible.
 - **Mark unit under mouse** — off by default. When enabled, opening the popup targets whatever's under your cursor at that instant, so you can mark it without clicking it first. Only works over the 3D world or nameplates, not unit frames (a vanilla client limitation, not an addon setting).
 - **Mark on Release** — off by default. When enabled, releasing the keybind while hovering an icon marks your target with it, no click needed. Works in both popup modes. Pairs well with Mark unit under mouse: mouseover a unit, hold the keybind, hover the icon, release.
 - **Reposition arrows** — only shown in Fixed Position mode; nudge the popup up/down/left/right in small steps, as an alternative to dragging it by hand.

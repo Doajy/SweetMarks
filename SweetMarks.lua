@@ -457,7 +457,7 @@ end
 -- ===== Options panel (separate window, opened via /sm options) =====
 
 local OPTIONS_WIDTH = 250
-local OPTIONS_HEIGHT = 630
+local OPTIONS_HEIGHT = 560
 
 local optionsFrame = CreateFrame("Frame", "SweetMarksOptionsFrame", UIParent)
 optionsFrame:SetWidth(OPTIONS_WIDTH)
@@ -545,7 +545,7 @@ optHelpBtn:SetScript("OnEnter", function()
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("Slim popup: shows just a single smaller row of icons, no title bar or Clear Mark button.", 0.8, 0.8, 0.8, 1)
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine("Visible Marks: uncheck any icon you never use to hide it - the popup (or slim row) shrinks to fit whatever's left. At least one must stay checked.", 0.8, 0.8, 0.8, 1)
+    GameTooltip:AddLine("Visible Marks: click an icon to hide it from the popup (dimmed = hidden) - the popup (or slim row) shrinks to fit whatever's left. At least one must stay visible.", 0.8, 0.8, 0.8, 1)
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("Mark unit under mouse: targets whatever's under your cursor the instant the popup opens, so you can mark it without clicking it first. Only works over the 3D world or nameplates, not unit frames.", 0.8, 0.8, 0.8, 1)
     GameTooltip:AddLine(" ")
@@ -679,63 +679,73 @@ slimHint:SetText("Slim popup: all 8 icons in one smaller row, no title bar or Cl
 
 -- Visible Marks - hides icons you never use so the popup (or slim row)
 -- shrinks to just the ones you keep, reflowing left-to-right/top-to-bottom
--- in the same fixed order as ICON_NAMES. At least one must stay checked -
+-- in the same fixed order as ICON_NAMES. At least one must stay enabled -
 -- SweetMarks_ApplySlim has no sensible layout for zero visible icons.
+-- A single compact row of the real icons (dim = hidden) instead of 8
+-- checkbox+label rows - same idea as the slim popup itself, and a lot less
+-- vertical space than spelling out "Star", "Circle", etc.
 local visHeading = optionsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 visHeading:SetPoint("TOP", slimHint, "BOTTOM", 0, -14)
 visHeading:SetTextColor(1, 1, 1, 1)
 visHeading:SetText("Visible Marks")
 
-local VIS_ROW_WIDTH = 216
-local visRows = {}
-for r = 1, 4 do
-    visRows[r] = CreateFrame("Frame", nil, optionsFrame)
-    visRows[r]:SetWidth(VIS_ROW_WIDTH)
-    visRows[r]:SetHeight(16)
-    if r == 1 then
-        visRows[r]:SetPoint("TOP", visHeading, "BOTTOM", 0, -10)
-    else
-        visRows[r]:SetPoint("TOP", visRows[r - 1], "BOTTOM", 0, -10)
-    end
-end
+local VIS_ICON_SIZE = 22
+local VIS_ICON_GAP = 5
+local visIconRowWidth = 8 * VIS_ICON_SIZE + 7 * VIS_ICON_GAP
 
-local visChecks = {}
+local visIconRow = CreateFrame("Frame", nil, optionsFrame)
+visIconRow:SetWidth(visIconRowWidth)
+visIconRow:SetHeight(VIS_ICON_SIZE)
+visIconRow:SetPoint("TOP", visHeading, "BOTTOM", 0, -10)
+
+local visToggles = {}
+local visToggleIcons = {}
 for i = 1, 8 do
-    local row = floor((i - 1) / 2) + 1
-    local col = mod(i - 1, 2)
-    local xOffset = 0
-    if col == 1 then xOffset = 110 end
+    local btn = CreateFrame("Button", nil, optionsFrame)
+    btn:SetWidth(VIS_ICON_SIZE)
+    btn:SetHeight(VIS_ICON_SIZE)
+    btn:SetPoint("LEFT", visIconRow, "LEFT", (i - 1) * (VIS_ICON_SIZE + VIS_ICON_GAP), 0)
 
-    local check = CreateFrame("CheckButton", nil, optionsFrame)
-    check:SetWidth(16)
-    check:SetHeight(16)
-    check:SetPoint("LEFT", visRows[row], "LEFT", xOffset, 0)
-    check:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-    })
-    check:SetBackdropColor(unpack(COLOR_BTN))
-    check:SetBackdropBorderColor(unpack(COLOR_BORDER))
-    check:SetHighlightTexture("Interface\\Buttons\\WHITE8x8")
-    local checkHl = check:GetHighlightTexture()
-    checkHl:SetVertexColor(1, 1, 1, 0.08)
-    check:SetCheckedTexture("Interface\\Buttons\\WHITE8x8")
-    local checkedTex = check:GetCheckedTexture()
-    checkedTex:ClearAllPoints()
-    checkedTex:SetPoint("TOPLEFT", check, "TOPLEFT", 3, -3)
-    checkedTex:SetPoint("BOTTOMRIGHT", check, "BOTTOMRIGHT", -3, 3)
-    checkedTex:SetVertexColor(unpack(COLOR_ACCENT_LINE))
+    local btnBg = Flat(btn)
+    btnBg:SetAllPoints(btn)
+    SetColor(btnBg, COLOR_BTN)
 
-    local label = check:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    label:SetPoint("LEFT", check, "RIGHT", 6, 0)
-    label:SetText(ICON_NAMES[i])
+    local btnHl = Flat(btn, "HIGHLIGHT")
+    btnHl:SetAllPoints(btn)
+    SetColor(btnHl, COLOR_BTN_HOVER)
+
+    local btnIcon = btn:CreateTexture(nil, "ARTWORK")
+    btnIcon:SetWidth(VIS_ICON_SIZE - 6)
+    btnIcon:SetHeight(VIS_ICON_SIZE - 6)
+    btnIcon:SetPoint("CENTER")
+    btnIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+    SetRaidTargetIconTexture(btnIcon, i)
 
     local index = i
-    check:SetScript("OnClick", function()
-        local isChecked = this:GetChecked() and true or false
-        if not isChecked then
+    local function UpdateVisToggleVisual()
+        if SweetMarksDB.enabledMarks[index] then
+            btnIcon:SetAlpha(1)
+        else
+            btnIcon:SetAlpha(0.25)
+        end
+    end
+
+    btn:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(btn, "ANCHOR_TOP")
+        GameTooltip:SetText(ICON_NAMES[index])
+        if SweetMarksDB.enabledMarks[index] then
+            GameTooltip:AddLine("Click to hide from the popup.", 0.6, 0.85, 1, 1)
+        else
+            GameTooltip:AddLine("Click to show in the popup.", 0.6, 0.85, 1, 1)
+        end
+        GameTooltip:Show()
+    end)
+    btn:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    btn:SetScript("OnClick", function()
+        local isEnabled = not SweetMarksDB.enabledMarks[index]
+        if not isEnabled then
             local remaining = 0
             for j = 1, 8 do
                 if SweetMarksDB.enabledMarks[j] then
@@ -743,23 +753,24 @@ for i = 1, 8 do
                 end
             end
             if remaining <= 1 then
-                this:SetChecked(true)
                 DEFAULT_CHAT_FRAME:AddMessage("|cffffd200SweetMarks:|r At least one mark must stay visible.")
                 return
             end
         end
-        SweetMarksDB.enabledMarks[index] = isChecked
+        SweetMarksDB.enabledMarks[index] = isEnabled
+        UpdateVisToggleVisual()
         SweetMarks_ApplySlim(SweetMarksDB.slim)
     end)
 
-    visChecks[i] = check
+    visToggles[i] = UpdateVisToggleVisual
+    visToggleIcons[i] = btnIcon
 end
 
 local visHint = optionsFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 visHint:SetWidth(HINT_WIDTH)
-visHint:SetPoint("TOP", visRows[4], "BOTTOM", 0, -10)
+visHint:SetPoint("TOP", visIconRow, "BOTTOM", 0, -10)
 visHint:SetJustifyH("CENTER")
-visHint:SetText("Choose which marks appear in the popup. At least one must stay checked.")
+visHint:SetText("Click an icon to show or hide it in the popup. At least one must stay visible.")
 
 slimCheck:SetScript("OnClick", function()
     local isSlim = this:GetChecked() and true or false
@@ -1118,7 +1129,7 @@ function SweetMarks_ToggleOptions()
         mouseoverCheck:SetChecked(SweetMarksDB.mouseoverMark)
         releaseCheck:SetChecked(SweetMarksDB.releaseToMark)
         for i = 1, 8 do
-            visChecks[i]:SetChecked(SweetMarksDB.enabledMarks[i])
+            visToggles[i]()
         end
         UpdateLockCheckboxVisual()
         SweetMarks_UpdateNudgeVisual()
