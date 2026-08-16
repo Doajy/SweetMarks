@@ -2,7 +2,7 @@ A keybind popup for quickly marking targets with raid icons, solo or in a group,
 
 ![The mark popup, slim popup, and Options window](screenshots/preview.png)
 
-Download from https://github.com/Doajy/SweetMarks/releases remove the -main and place in your addons folder
+Download from https://github.com/Doajy/SweetMarks/releases rname it to just SweetMarks and put in the Addons folder
 
 ## Setup
 
