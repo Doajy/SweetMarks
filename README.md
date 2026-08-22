@@ -7,7 +7,7 @@ Download from https://github.com/Doajy/SweetMarks/releases unzip and put in the 
 ## Setup
 
 1. Open **Key Bindings** in-game (Escape → Key Bindings), find the **SweetMarks** category, and bind a key to **Show/Toggle Mark Popup**.
-2. Open **Options** to pick how the popup should behave — `/sm options`, `/smoptions`, or click the skull icon on the minimap.
+2. Open **Options** to pick how the popup should behave — `/sm options`, `/smoptions`, or right-click the skull icon on the minimap.
 
 ## Using it
 
@@ -31,3 +31,9 @@ Download from https://github.com/Doajy/SweetMarks/releases unzip and put in the 
 
 - `/sm` or `/sweetmarks` — manually toggle the popup (useful for repositioning it without holding the keybind).
 - `/sm options` or `/smoptions` — open the Options window.
+
+## Minimap button
+
+- **Left-click** — toggle the mark popup.
+- **Right-click** — open Options.
+- **Drag** — move the button around the minimap.

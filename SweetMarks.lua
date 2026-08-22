@@ -551,7 +551,7 @@ optHelpBtn:SetScript("OnEnter", function()
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("Mark on Release: hold the keybind, hover an icon, then release to mark it - no click needed. Works in both popup modes.", 0.8, 0.8, 0.8, 1)
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine("The minimap button reopens this Options window.", 0.8, 0.8, 0.8, 1)
+    GameTooltip:AddLine("Left-click the minimap button to open the mark popup; right-click it to reopen this Options window.", 0.8, 0.8, 0.8, 1)
     GameTooltip:Show()
 end)
 optHelpBtn:SetScript("OnLeave", function()
@@ -1063,7 +1063,7 @@ minimapButton:SetWidth(31)
 minimapButton:SetHeight(31)
 minimapButton:SetFrameStrata("MEDIUM")
 minimapButton:SetFrameLevel(8)
-minimapButton:RegisterForClicks("LeftButtonUp")
+minimapButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 minimapButton:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
 
 local mmBackground = minimapButton:CreateTexture(nil, "BACKGROUND")
@@ -1110,13 +1110,22 @@ minimapButton:SetScript("OnDragStart", function() this:SetScript("OnUpdate", OnM
 minimapButton:SetScript("OnDragStop", function() this:SetScript("OnUpdate", nil) end)
 
 minimapButton:SetScript("OnClick", function()
-    SweetMarks_ToggleOptions()
+    if arg1 == "RightButton" then
+        SweetMarks_ToggleOptions()
+    else
+        if SweetMarksFrame:IsShown() then
+            SweetMarks_Hide()
+        else
+            SweetMarks_Show()
+        end
+    end
 end)
 
 minimapButton:SetScript("OnEnter", function()
     GameTooltip:SetOwner(this, "ANCHOR_LEFT")
     GameTooltip:SetText("SweetMarks")
-    GameTooltip:AddLine("Click to open options", 1, 1, 1)
+    GameTooltip:AddLine("Left-click to open the mark popup", 1, 1, 1)
+    GameTooltip:AddLine("Right-click to open options", 1, 1, 1)
     GameTooltip:AddLine("Drag to move this button", 0.7, 0.7, 0.7)
     GameTooltip:Show()
 end)
